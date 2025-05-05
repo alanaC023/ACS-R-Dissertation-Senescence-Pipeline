@@ -19,8 +19,8 @@ getwd()
 #file.info("C:\\Users\\alana\\OneDrive\\Documents\\Uni Year 04\\BIO540\\GSE2240\\GSE2240\\GSE2240_RAW.tar")$size
 
 #Unzip and extract content
-#untar("GSE2240_RAW.tar", exdir = "GSE2240_RAW")
-#list.files("GSE2240_RAW")
+untar("GSE2240_RAW.tar", exdir = "GSE2240_RAW")
+list.files("GSE2240_RAW")
 
 #Setting working directory to my saved dataset
 #setwd("C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240")
@@ -52,18 +52,22 @@ library(hgu133b.db)
 library()
 
 #Converting Affy ID's to gene names
+
 #Step1-Extract Affy Id's  
 affyIDs <- colnames(GSE2240_ExprsDataset)
+
 #Step2-Using the saved data from step1, remove the first column which is ID
 affyIDs <- affyIDs[-1]
+
 #Step3-Make sure the above two steps worked
 affyIDs
+
 #Step4-Remove the prefix of the IDs
 affyIDsremoved <- sub("^X", "", affyIDs)
 print(affyIDsremoved)
 
-affyIDs_AF <- gsub("AF$", "", affyIDsremoved)
-print(affyIDs_AF)
+#affyIDs_AF <- gsub("AF$", "", affyIDsremoved)
+#print(affyIDs_AF)
 
 #Step5-Converting affyIDs into gene symbols using mapIDs function
 keytypes(hgu133b.db)
@@ -559,7 +563,7 @@ devtools::install_version("pathfindR", version = "2.4.2", upgrade = "never")
 Pathwaydf <- data.frame('genesymbols' = Values_DataFrame$genesymbol, 'log2FoldChange' = Values_DataFrame$log2FC, 'pval' = Values_DataFrame$`p-value`)
 View(Pathwaydf)
 
-outputdf <- run_pathfindR(Pathwaydf, output_dir = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/PathwayAnalysisOutput")
+outputdf <- run_pathfindR(Pathwaydf, output_dir = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/PathwayAnalysisOutput", adj_method = "fdr", enrichment_threshold = 0.01)
 
 print(head(outputdf))
 
