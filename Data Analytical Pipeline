@@ -1,0 +1,764 @@
+setRepositories()
+
+# Installs BiocManager and GEOquery package
+install.packages("BiocManager")
+library(BiocManager)
+
+install.packages("GEOquery")
+library(GEOquery)
+
+# Define GEO accession numbers
+geo_accessions <- c("GSE2240")
+
+#Download supplementary file from GEO
+getGEOSuppFiles("GSE2240")
+
+setwd("C:\\Users\\alana\\OneDrive\\Documents\\Uni Year 04\\BIO540\\GSE2240\\GSE2240")
+getwd()
+#list.files()
+#file.info("C:\\Users\\alana\\OneDrive\\Documents\\Uni Year 04\\BIO540\\GSE2240\\GSE2240\\GSE2240_RAW.tar")$size
+
+#Unzip and extract content
+#untar("GSE2240_RAW.tar", exdir = "GSE2240_RAW")
+#list.files("GSE2240_RAW")
+
+#Setting working directory to my saved dataset
+#setwd("C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240")
+#getwd()
+
+#Reading in GEO Processed Matrix Downloaded from GEO Database
+GSE2240_ExprsDataset <- read.csv("C:\\Users\\alana\\OneDrive\\Documents\\Uni Year 04\\BIO540\\GSE2240\\GSE2240_Exprs_Data\\GSE2240_ExprsDataset.csv", header = TRUE, row.names = 1)
+head(GSE2240_ExprsDataset)
+
+#Transposing Matrix and Manually Adding in Sample IDs (i.e. AF, SR)
+GSE2240_ExprsDataset <- t(GSE2240_ExprsDataset)
+
+#Checking format is correct
+write.csv(GSE2240_ExprsDataset, "GSE2240ExpressionMatrix", row.names = T)
+
+#Install BioStrings - needed to install AnnotationDbi
+install.packages("Biostrings")
+library(Biostrings)
+
+#Install AnnotationDbi package
+install.packages("AnnotationDbi")
+library(AnnotationDbi)
+
+#Install Affymetrix conversion to convert IDs into gene symbols
+install.packages("hgu133b.db")
+library(hgu133b.db)
+
+#Ensuring all packages have been installed into session correctly
+library()
+
+#Converting Affy ID's to gene names
+#Step1-Extract Affy Id's  
+affyIDs <- colnames(GSE2240_ExprsDataset)
+#Step2-Using the saved data from step1, remove the first column which is ID
+affyIDs <- affyIDs[-1]
+#Step3-Make sure the above two steps worked
+affyIDs
+#Step4-Remove the prefix of the IDs
+affyIDsremoved <- sub("^X", "", affyIDs)
+print(affyIDsremoved)
+
+affyIDs_AF <- gsub("AF$", "", affyIDsremoved)
+print(affyIDs_AF)
+
+#Step5-Converting affyIDs into gene symbols using mapIDs function
+keytypes(hgu133b.db)
+
+genesymbols <- mapIds(hgu133b.db,
+                      keys = affyIDsremoved,
+                      column = "SYMBOL",
+                      keytype = "PROBEID",
+                      multiVals = "first")
+genesymbols
+
+#Identifying NAs in my expression matrix to be removed (prints column numbers that are NA)
+genesymbols_NA <- which(is.na(genesymbols))
+print(genesymbols_NA)
+
+#Removing columns with NA values by checking if there are any NA values in my genesymbols and removing the column from my expression matrix
+if (length(genesymbols_NA) > 0) {
+  #Removes NA gene symbols - = remove values
+  GSE2240_ExprsDatasetComplete <- GSE2240_ExprsDataset[, -(genesymbols_NA + 1)]
+} else {
+  #Keep original if no NA value
+  GSE2240_ExprsDatasetComplete <- GSE2240_ExprsDataset
+}
+
+#Removing NA values from vector 'genesymbols'
+genesymbols <- genesymbols[-genesymbols_NA]
+
+colnames(GSE2240_ExprsDatasetComplete)[-1] <- genesymbols
+
+rownames(GSE2240_ExprsDatasetComplete) <- rownames(GSE2240_ExprsDataset)
+
+View(GSE2240_ExprsDatasetComplete)
+summary(GSE2240_ExprsDatasetComplete)
+
+#Transpose matrix to have genes as rows and columns as samples
+GSE2240_ExprsDatasetTransposed <- t(GSE2240_ExprsDatasetComplete)
+
+#Saving my matrix to my desktop 
+getwd()
+write.csv(GSE2240_ExprsDatasetTransposed, "TransposedGSE2240ExpressionMatrix", row.names = T)
+
+install.packages("openxlsx")
+library(openxlsx)
+write.xlsx(GSE2240_ExprsDatasetTransposed, file = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/GSE2240_Exprs_Data")
+
+#---------------------------I HAVE GENE SYMBOLS MAPPED AND MATRIX TRANSPOSED------------------------------------------
+#Install packages to find mean values, log2FC, t-test and p-value
+install.packages("stats")  
+library(stats)  
+#install.packages("dplyr")  
+#library(dplyr)
+#install.packages("tibble")
+#library(tibble)
+
+#Removing ID column so my matrix only has numerical values
+GSE2240_ExprsDSMinusIDs <- GSE2240_ExprsDatasetTransposed[-1, ]
+print(head(GSE2240_ExprsDSMinusIDs[, 1:5]))
+
+#Manually assigning IDs to Samples and saving in a vector
+SampleIDs <- c("AF", "AF", "AF", "AF", "AF", "AF", "AF", "AF", "AF", "AF", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR", "SR")
+
+#Checking that my created vector matches my matrix
+length(SampleIDs)
+ncol(GSE2240_ExprsDSMinusIDs)
+
+#Extracting AF and SR IDs and saving in a variable 
+AFsamples <- GSE2240_ExprsDSMinusIDs[, SampleIDs == "AF"]
+colnames(GSE2240_ExprsDSMinusIDs)
+SRsamples <- GSE2240_ExprsDSMinusIDs[, SampleIDs == "SR"]
+print("AF Samples:")
+print(head(AFsamples))
+print("SR Samples:")
+print(head(SRsamples))
+
+#Identifying column indicies for AF and SR samples
+AFcols <- which(SampleIDs == "AF")
+SRcols <- which(SampleIDs == "SR")
+
+print(paste("AF cols at positions:", paste(AFcols, collapse = ", ")))
+print(paste("SR cols at positions:", paste(SRcols, collapse = ", ")))
+
+#Checking for missing values
+if (length(AFcols) == 0 || length(SRcols) == 0) {
+  stop("Error")
+}
+
+#Extracting AF and SR samples 
+AFsamples <- GSE2240_ExprsDSMinusIDs[, AFcols, drop=FALSE] #Drop set to F to keep matrix structure as is
+SRsamples <- GSE2240_ExprsDSMinusIDs[, SRcols, drop=FALSE]
+
+#Defining function to calculate log2FC and p-value
+calValues <- function(row_data, AFcols, SRcols) {
+  AF_samples <- as.numeric(row_data[AFcols])
+  SR_samples <- as.numeric(row_data[SRcols])
+  
+  #Removing NA values
+  AF_samples <- AF_samples[!is.na(AF_samples)]
+  SR_samples <- SR_samples[!is.na(SR_samples)]
+  
+  #AF and SR means and checking for empty vectors
+  AF_mean <- ifelse(length(AF_samples) > 0, mean(AF_samples, na.rm = TRUE), NA)
+  SR_mean <- ifelse(length(SR_samples) > 0, mean(SR_samples, na.rm = TRUE), NA)
+  
+  #Log2FC
+  log2FC <- ifelse(AF_mean > 0 & SR_mean > 0 , (AF_mean - SR_mean), NA)
+  
+  #P-value (only computed if both groups have at least 2 values) 
+  p_value <- if(length(AF_samples) >= 2 && length(SR_samples) >= 2) {
+    t_test <-tryCatch(t.test(AF_samples, SR_samples), error = function(e) return(NA)) 
+    t_test$p.value
+  } else {
+    NA
+  }
+  
+  return(c(AF_mean, SR_mean, log2FC, p_value))
+}  
+
+#Applying function above to each row of matrix and transposing
+Values <- t(apply(GSE2240_ExprsDSMinusIDs, 1, function(row) calValues(row, AFcols, SRcols)))
+
+#Converting matrix to a dataframe and adding column names
+Values_DataFrame <- as.data.frame(Values)
+colnames(Values_DataFrame)
+colnames(Values_DataFrame) <- c("AF_mean", "SR_mean", "log2FC", "p-value")
+View(Values)
+#Adding genesymbols
+if(!is.null(rownames(GSE2240_ExprsDSMinusIDs))) {
+  Values_DataFrame$genesymbol <- rownames(GSE2240_ExprsDSMinusIDs)
+}
+
+#Reordering columns
+Values_DataFrame <- Values_DataFrame[, c("genesymbol", "log2FC", "AF_mean", "SR_mean", "p-value")]
+
+#Printing first 6 lines
+print(head(Values_DataFrame))
+
+#---------------------------I HAVE A DATAFRAME WITH GENE SYMBOLS, LOG2FC, MEAN VALUES AND P-VALUES------------------------------------------
+install.packages("ggplot2")
+library(ggplot2)
+install.packages("pheatmap")
+library(pheatmap)
+install.packages("ggstatsplot")
+library(ggstatsplot)
+library(dplyr)
+library()
+
+#Plotting MA plot 
+ggplot(Values_DataFrame, aes(x=AF_mean, y=log2FC)) +
+  geom_point(alpha=0.4, colour="blue") +
+  xlab("Average Expression") +
+  ylab("Log2 Fold Change") +
+  ggtitle("MA Plot")
+
+setwd("C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/GSE2240_Exprs_Data")
+list.files()
+install.packages("dplyr")
+library(dplyr)
+install.packages("readxl")
+library(readxl)
+SenescentIDs <- read_excel("C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/GSE2240_Exprs_Data/SenescentIDs.xlsx")
+
+#Adding column to my table to specify if genes are upregulated, downregulated or not significant
+Values_DataFrame <- Values_DataFrame %>% 
+  mutate(differentially_expressed=case_when(Values_DataFrame$genesymbol %in% SenescentIDs$joined_list & (Values_DataFrame$log2FC > 0.5 | Values_DataFrame$log2FC < -0.5) & Values_DataFrame$`p-value` < 0.05~"Senescent",
+                                            Values_DataFrame$log2FC > 0.5 & Values_DataFrame$`p-value` < 0.05~"Upregulation",
+                                  Values_DataFrame$log2FC < -0.5 & Values_DataFrame$`p-value` < 0.05~"Downregulation",  
+                                  T~"Not Significant"))
+
+#Displaying min and max Log2FC values and viewing updated table
+range(Values_DataFrame$log2FC)
+View(Values_DataFrame)
+
+#Volcano Plot
+
+#Setting theme for volcano plot
+theme_set(theme_classic(base_size = 20) +
+            theme(
+              axis.title.y = element_text(face = "bold", margin = margin(0,15,0,0), size = rel(1.3), colour = 'black'),
+              axis.title.x = element_text(hjust = 0.5, face = "bold", margin = margin(15,0,0,0), size = rel(1.3), colour = 'black'),
+              axis.text = element_text(size=14, colour="black"),
+              plot.title = element_text(hjust = 0.4, face="bold", size=18),
+              legend.title=element_text(face="bold", size=14),
+              legend.text = element_text(size=12),
+              legend.position = "right"
+            ))
+
+#Defining Cutoffs
+logFC_CO <- -0.5
+pvalue_CO<-0.05
+
+#Threshold for p-value significance 
+pvalue_threshold<- -log10(pvalue_CO)
+
+#Assigning order of diff expressed genes
+Values_DataFrame$differentially_expressed <- factor(Values_DataFrame$differentially_expressed,levels=c("Senescent", "Upregulation", "Downregulation", "Not Significant"))
+
+#Plotting volcano plot
+ggplot(Values_DataFrame, aes(x=log2FC, y=-log10(`p-value`), colour=differentially_expressed)) +
+  geom_vline(xintercept = c(-logFC_CO, logFC_CO), col = "grey50", linetype = 'dashed', linewidth=1) +
+  geom_hline(yintercept = pvalue_threshold, col = "grey50", linetype = 'dashed', linewidth=1) +
+  geom_point(size=3, alpha=1) +
+  scale_colour_manual(name="Differentially Expressed Genes",
+                      values=c("Senescent" = "green3",
+                               "Upregulation" = "red",
+                               "Downregulation" = "blue",
+                               "Not Significant" = "azure4"),
+                      labels = c("Senescent Genes", "Upregulated Genes", "Downregulated Genes", "Not Significant Genes")) +
+  geom_text(aes(label = ifelse(differentially_expressed != "Not significant", # c("Upregulation", "Downregulation"), 
+                               as.character(genesymbols), "")),
+            vjust = -0.7, size = 5, check_overlap = T) +
+  xlab("log2(FC)") +
+  ylab("-log10 p-value") +
+  ggtitle("Differentially Expressed Genes Between Atrial Fibrillation Patients and Sinus Rhythm Patients") +
+  theme(legend.key = element_rect(fill="white", colour="white")) +
+  guides(colour=guide_legend(override.aes=aes(label="")))
+
+
+#Heatmap
+
+#Installing packages
+install.packages("pheatmap")
+library(pheatmap)
+install.packages("RColourBrewer")
+library(RColorBrewer)
+
+#Top 50 Statistically Significant Genes
+
+heatmap <- GSE2240_ExprsDSMinusIDs
+
+#Clean Data - removing non-numeric characters from columns 
+cleanheatmap <- apply(heatmap, 2, function(x) gsub("[^0-9.-]", "", x))
+
+#Converting to each column to numeric format and quality control
+Numeric_heatmap <- tryCatch({
+  apply(cleanheatmap, 2, as.numeric)},
+  error = function(e) {
+    print("Error")
+    print(e)
+    return(NULL)})
+
+if (is.null(Numeric_heatmap)) {
+  stop("Failed")
+}
+
+#Assigning rownames
+rownames(Numeric_heatmap) <- rownames(heatmap)
+
+#Selecting top 50 unique genes based on p-value
+sigGenes <- Values_DataFrame[Values_DataFrame$`p-value` <0.05, ]
+
+sigGenesSPL<-split(sigGenes,sigGenes$differentially_expressed)
+print(names(sigGenesSPL))
+
+print(lapply(sigGenesSPL, nrow))
+sigGenes <- rbind(sigGenesSPL$Upregulation, sigGenes$Downregulation, sigGenesSPL$Senescent)
+sigGenes_list <- list()
+if (!is.null(sigGenesSPL$Upregulation) && nrow(sigGenesSPL$Upregulation) > 0) {
+  sigGenes_list$Upregulation <- sigGenesSPL$Upregulation
+}
+if (!is.null(sigGenesSPL$Downregulation) && nrow(sigGenesSPL$Downregulation) > 0) {
+  sigGenes_list$Downregulation <- sigGenesSPL$Downregulation
+}
+if (!is.null(sigGenesSPL$Senescent) && nrow(sigGenesSPL$Senescent) > 0) {
+  sigGenes_list$Senescent <- sigGenesSPL$Senescent
+}
+
+sigGenes <- do.call(rbind, sigGenes_list)
+
+sig50Genes <- unique(sigGenes$genesymbol)
+sig50Genes <- sig50Genes[1:min(50, length(sig50Genes))]
+
+#Filtering to plot only genes in sig50Genes
+#sig50GenesHeatmap <- Numeric_heatmap[rownames(Numeric_heatmap) %in% sig50Genes, ]
+sig50GenesHeatmap <- Numeric_heatmap[match(sig50Genes, rownames(Numeric_heatmap)), , drop=F]
+sig50GenesHeatmap <- na.omit(sig50GenesHeatmap)
+
+SamplesAnnotated <- data.frame(
+  Condition = factor(SampleIDs, levels = c("AF", "SR"))
+)
+
+#SamplesAnnotated <- SamplesAnnotated[order(SamplesAnnotated$Condition), ,drop=F]
+#sig50GenesHeatmap <- sig50GenesHeatmap[, rownames(SamplesAnnotated)]
+                               
+#Rownames to match colnames
+rownames(SamplesAnnotated) <- colnames(GSE2240_ExprsDSMinusIDs)
+
+#reordering for Control then Case 
+reord <- arrange(SamplesAnnotated, desc(SamplesAnnotated$Condition))
+
+reordsig50GenesHeatmap <- sig50GenesHeatmap[, rownames(reord)]
+
+test1<-cbind(SampleIDs,reordsig50GenesHeatmap)
+test1<-as.data.frame(test1)
+test1<-arrange(test1,desc(test1$SampleIDs))
+
+test2<-test1[c(-1)]
+test2<-data.frame(lapply(test2, function(x) as.numeric(x)))
+
+
+#Defining colours
+annotation_colours <- list(
+  Condition = c("SR" = "blue", "AF" = "red")
+)
+
+#Defining colours
+colors <- colorRampPalette(c("blue", "white", "red"))(50)
+
+#50
+if(nrow(sig50GenesHeatmap) == 0) {
+  stop("No Significant")
+} else if (nrow(sig50GenesHeatmap) < 50){
+  print("Less than 50 found")
+}
+
+View(test2)
+
+rownames(test2)<-rownames(test1)
+#Generating 50 gene heatmap
+pheatmap(test2,
+         color = colors,
+         cluster_rows = T,
+         cluster_cols = F,
+         show_rownames = T,
+         show_colnames = T,
+         scale = "row",
+         main = "Heatmap of Top 50 Differentially Expressed Genes",
+         gaps_col = sum(SamplesAnnotated$Condition == "SR"),
+         annotation_col = reord,
+         annotation_colors = annotation_colours)
+View(reordsig50GenesHeatmap)
+
+library(openxlsx)
+write.xlsx(sigGenes, file = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/HeatmapsigGenes")
+
+
+#Violin Box Plot
+
+View(Values_DataFrame)
+
+#Installing package to plot violin plot
+install.packages("shiny", type = "binary")
+library(shiny)
+
+install.packages("devtools")
+library(devtools)
+install.packages("Rtools")
+devtools::install_version("ggstatsplot", version = "0.13.0", repos = "http://cran.r-project.org")
+
+devtools::install_github("IndrajeetPatil/ggstatsplot")
+
+install.packages("ggstatsplot")
+library(ggstatsplot)
+
+install.packages("Rtools")
+devtools::install_version("Rtools",)
+library(devtools)
+
+devtools::install_local("C:\\Users\\alana\\Downloads\\pathfindR_2.4.2.tar.gz")
+
+install.packages("devtools")
+
+library(devtools)
+
+install.packages("ggbetweenstats")
+library(ggbetweenstats)
+
+#Top 2 Down and Upreg
+#LGR6 -D
+#AKAP12 -D
+#SLC12A2 -U
+#ANKRD10 -U 
+
+SLC12A2 <- Values_DataFrame[Values_DataFrame$genesymbol == "SLC12A2", ]
+SLC12A2plot <- data.frame(
+  Condition = c(rep("SR", ncol(SRsamples)), rep("AF", ncol(AFsamples))),
+  Expression = c(as.numeric(GSE2240_ExprsDSMinusIDs["SLC12A2", SRcols]),
+                 as.numeric(GSE2240_ExprsDSMinusIDs["SLC12A2", AFcols]))
+)
+
+#Reorder so plots control (LHS) and case (RHS)
+SLC12A2plot$Condition <- factor(SLC12A2plot$Condition, levels=c("SR","AF"))
+
+#Code for plot and theme  
+ggplot(SLC12A2plot, aes(x = Condition, y = Expression, fill = Condition)) +
+  geom_violin(trim = F, alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size =2, shape = 21, colour = "black", aes(fill = Condition)) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "SLC12A2 Expression Levels in SR and AF Patients",
+    x = "Condition",
+    y = "SLC12A2 (TPM)") +
+  theme_bw(base_size = 18) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ANKRD10 <- Values_DataFrame[Values_DataFrame$genesymbol == "ANKRD10", ]
+ANKRD10plot <- data.frame(
+  Condition = c(rep("SR", ncol(SRsamples)), rep("AF", ncol(AFsamples))),
+  Expression = c(as.numeric(GSE2240_ExprsDSMinusIDs["ANKRD10", SRcols]),
+                 as.numeric(GSE2240_ExprsDSMinusIDs["ANKRD10", AFcols]))
+)
+
+#Reorder so plots control (LHS) and case (RHS)
+ANKRD10plot$Condition <- factor(ANKRD10plot$Condition, levels=c("SR","AF"))
+
+#Code for plot and theme  
+ggplot(ANKRD10plot, aes(x = Condition, y = Expression, fill = Condition)) +
+  geom_violin(trim = F, alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size =2, shape = 21, colour = "black", aes(fill = Condition)) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "ANKRD10 Expression Levels in SR and AF Patients",
+    x = "Condition",
+    y = "ANKRD10 (TPM)") +
+  theme_bw(base_size = 18) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+AKAP12 <- Values_DataFrame[Values_DataFrame$genesymbol == "AKAP12", ]
+AKAP12plot <- data.frame(
+  Condition = c(rep("AF", ncol(AFsamples)), rep("SR", ncol(SRsamples))),
+  Expression = c(as.numeric(GSE2240_ExprsDSMinusIDs["AKAP12", AFcols]),
+                 as.numeric(GSE2240_ExprsDSMinusIDs["AKAP12", SRcols]))
+)
+
+AKAP12 <- Values_DataFrame[Values_DataFrame$genesymbol == "AKAP12", ]
+AKAP12plot <- data.frame(
+  Condition = c(rep("SR", ncol(SRsamples)), rep("AF", ncol(AFsamples))),
+  Expression = c(as.numeric(GSE2240_ExprsDSMinusIDs["AKAP12", SRcols]),
+                 as.numeric(GSE2240_ExprsDSMinusIDs["AKAP12", AFcols]))
+)
+
+#Reorder so plots control (LHS) and case (RHS)
+AKAP12plot$Condition <- factor(AKAP12plot$Condition, levels=c("SR","AF"))
+
+#Code for plot and theme  
+ggplot(AKAP12plot, aes(x = Condition, y = Expression, fill = Condition)) +
+  geom_violin(trim = F, alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size =2, shape = 21, colour = "black", aes(fill = Condition)) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "AKAP12 Expression Levels in SR and AF Patients",
+    x = "Condition",
+    y = "AKAP12 (TPM)") +
+  theme_bw(base_size = 18) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+LGR6 <- Values_DataFrame[Values_DataFrame$genesymbol == "LGR6", ]
+LGR6plot <- data.frame(
+  Condition = c(rep("SR", ncol(SRsamples)), rep("AF", ncol(AFsamples))),
+  Expression = c(as.numeric(GSE2240_ExprsDSMinusIDs["LGR6", SRcols]),
+                 as.numeric(GSE2240_ExprsDSMinusIDs["LGR6", AFcols]))
+)
+
+#Reorder so plots control (LHS) and case (RHS)
+LGR6plot$Condition <- factor(LGR6plot$Condition, levels=c("SR","AF"))
+
+#Code for plot and theme  
+ggplot(LGR6plot, aes(x = Condition, y = Expression, fill = Condition)) +
+  geom_violin(trim = F, alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size =2, shape = 21, colour = "black", aes(fill = Condition)) +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(
+    title = "LGR6 Expression Levels in SR and AF Patients",
+    x = "Condition",
+    y = "LGR6 (TPM)") +
+  theme_bw(base_size = 18) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+topsenescentGenes <- data.frame('SLC12A2' = SLC12A2plot, 'ANKRD10' = ANKRD10plot, 'LGR6' = LGR6plot, 'AKAP12' = AKAP12plot) 
+library(openxlsx)
+write.xlsx(topsenescentGenes, file = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/foursenescentgenes")
+#-------------------------------Visual Outputs Completed------------------------------------------
+
+
+#-------------------------------Pathway Analysis--------------------------------------------------
+
+library(BiocManager)
+
+install.packages("pathfindR")
+library(pathfindR)
+
+library()
+devtools::install_version("pathfindR", version = "2.4.2", upgrade = "never")
+
+#creating a datframe containing genesymbols and p-values for pathway mapping 
+Pathwaydf <- data.frame('genesymbols' = Values_DataFrame$genesymbol, 'log2FoldChange' = Values_DataFrame$log2FC, 'pval' = Values_DataFrame$`p-value`)
+View(Pathwaydf)
+
+outputdf <- run_pathfindR(Pathwaydf, output_dir = "C:/Users/alana/OneDrive/Documents/Uni Year 04/BIO540/GSE2240/PathwayAnalysisOutput")
+
+print(head(outputdf))
+
+#-----------------------------MACHINE LEARNING SVM ROC CURVES---------------------------------------
+install.packages("e1071")
+library(e1071)    
+
+install.packages("pROC")
+library(pROC)
+
+install.packages("caret")
+library(caret)
+
+#ANKRD10
+
+#set seed for reproducibility
+set.seed(2)
+
+#Splitting data into training and testing
+index <- sample(1:nrow(ANKRD10plot), 0.7 * nrow(ANKRD10plot))
+train <- ANKRD10plot[index, ]
+test <- ANKRD10plot[-index, ]
+
+#Training model
+SVM <- svm(Condition ~ Expression, data = train, probability = T)
+
+#Predictions on test and extracts predicted probabilities for AF
+predict <- predict(SVM, test, probability = T)
+probability <- attr(predict, "probabilities")[, "AF"]
+
+#Calculating ROC curve
+ROCcurve1 <- roc(test$Condition, probability, levels = c("SR", "AF"))
+AUCvalue <- auc(ROCcurve1)
+AUCci <- ci.auc(ROCcurve1, method = "bootstrap", conf.level = 0.95)
+
+
+Confidence1 = ci.se(ROCcurve1, conf.level=0.95, method=c("bootstrap"),
+                    boot.n = 5000,
+                    boot.stratified = T,
+                    reuse.auc = T,
+                    specificities=seq(0, 1, l=25),
+                    plot=F)
+
+Conf <- data.frame(x = as.numeric(rownames(Confidence1)),
+                   lower = Confidence1[ ,1],
+                   upper = Confidence1[, 3])
+
+SVMROC<-ggroc(ROCcurve1, legacy.axes = T) +
+  theme_minimal()+
+  geom_abline(slope=1, intercept = 1, linetype = "dashed", alpha = 0.7, colour = "grey") +
+  coord_equal() +
+  geom_ribbon(data = Conf, aes(x = 1-x, ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
+  xlab(expression("1-Specificity")) +
+  ylab(expression("Sensitivity")) +
+  ggtitle(paste("SVM ROC Curve: ANKRD10\nAUC =", format(round(AUCvalue, 2), nsmall = 2))) +
+  theme_bw(base_size = 16)
+
+SVMROC
+
+
+
+#SLC12A2
+
+#set seed for reproducibility
+set.seed(2)
+
+#Splitting data into training and testing
+index <- sample(1:nrow(SLC12A2plot), 0.7 * nrow(SLC12A2plot))
+train <- SLC12A2plot[index, ]
+test <- SLC12A2plot[-index, ]
+
+#Training model
+SVM <- svm(Condition ~ Expression, data = train, probability = T)
+
+#Predictions on test and extracts predicted probabilities for AF
+predict <- predict(SVM, test, probability = T)
+probability <- attr(predict, "probabilities")[, "AF"]
+
+#Calculating ROC curve
+ROCcurve2 <- roc(test$Condition, probability, levels = c("SR", "AF"))
+AUCvalue <- auc(ROCcurve2)
+AUCci <- ci.auc(ROCcurve2, method = "bootstrap", conf.level = 0.95)
+
+
+Confidence2 = ci.se(ROCcurve2, conf.level=0.95, method=c("bootstrap"),
+                    boot.n = 5000,
+                    boot.stratified = T,
+                    reuse.auc = T,
+                    specificities=seq(0, 1, l=25),
+                    plot=F)
+
+Conf2 <- data.frame(x = as.numeric(rownames(Confidence2)),
+                   lower = Confidence2[ ,1],
+                   upper = Confidence2[, 3])
+
+SVMROC2<-ggroc(ROCcurve2, legacy.axes = T) +
+  theme_minimal()+
+  geom_abline(slope=1, intercept = 1, linetype = "dashed", alpha = 0.7, colour = "grey") +
+  coord_equal() +
+  geom_ribbon(data = Conf2, aes(x = 1-x, ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
+  xlab(expression("1-Specificity")) +
+  ylab(expression("Sensitivity")) +
+  ggtitle(paste("SVM ROC Curve: SLC12A2\nAUC =", format(round(AUCvalue, 2), nsmall = 2))) +
+  theme_bw(base_size = 16)
+
+SVMROC2
+
+
+
+#LGR6
+
+#set seed for reproducibility
+set.seed(2)
+
+#Splitting data into training and testing
+index <- sample(1:nrow(LGR6plot), 0.7 * nrow(LGR6plot))
+train <- LGR6plot[index, ]
+test <- LGR6plot[-index, ]
+
+#Training model
+SVM <- svm(Condition ~ Expression, data = train, probability = T)
+
+#Predictions on test and extracts predicted probabilities for AF
+predict <- predict(SVM, test, probability = T)
+probability <- attr(predict, "probabilities")[, "AF"]
+
+#Calculating ROC curve
+ROCcurve3 <- roc(test$Condition, probability, levels = c("SR", "AF"))
+AUCvalue <- auc(ROCcurve3)
+AUCci <- ci.auc(ROCcurve3, method = "bootstrap", conf.level = 0.95)
+
+
+Confidence3 = ci.se(ROCcurve3, conf.level=0.95, method=c("bootstrap"),
+                    boot.n = 5000,
+                    boot.stratified = T,
+                    reuse.auc = T,
+                    specificities=seq(0, 1, l=25),
+                    plot=F)
+
+Conf3 <- data.frame(x = as.numeric(rownames(Confidence3)),
+                   lower = Confidence3[ ,1],
+                   upper = Confidence3[, 3])
+
+SVMROC3<-ggroc(ROCcurve3, legacy.axes = T) +
+  theme_minimal()+
+  geom_abline(slope=1, intercept = 1, linetype = "dashed", alpha = 0.7, colour = "grey") +
+  coord_equal() +
+  geom_ribbon(data = Conf3, aes(x = 1-x, ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
+  xlab(expression("1-Specificity")) +
+  ylab(expression("Sensitivity")) +
+  ggtitle(paste("SVM ROC Curve: LGR6\nAUC =", format(round(AUCvalue, 2), nsmall = 2))) +
+  theme_bw(base_size = 16)
+
+SVMROC3
+
+
+
+#AKAP12
+
+#set seed for reproducibility
+set.seed(2)
+
+#Splitting data into training and testing
+index <- sample(1:nrow(AKAP12plot), 0.7 * nrow(AKAP12plot))
+train <- AKAP12plot[index, ]
+test <- AKAP12plot[-index, ]
+
+#Training model
+SVM <- svm(Condition ~ Expression, data = train, probability = T)
+
+#Predictions on test and extracts predicted probabilities for AF
+predict <- predict(SVM, test, probability = T)
+probability <- attr(predict, "probabilities")[, "AF"]
+
+#Calculating ROC curve
+ROCcurve4 <- roc(test$Condition, probability, levels = c("SR", "AF"))
+AUCvalue <- auc(ROCcurve4)
+AUCci <- ci.auc(ROCcurve4, method = "bootstrap", conf.level = 0.95)
+
+
+Confidence4 = ci.se(ROCcurve4, conf.level=0.95, method=c("bootstrap"),
+                    boot.n = 5000,
+                    boot.stratified = T,
+                    reuse.auc = T,
+                    specificities=seq(0, 1, l=25),
+                    plot=F)
+
+Conf4 <- data.frame(x = as.numeric(rownames(Confidence4)),
+                   lower = Confidence4[ ,1],
+                   upper = Confidence4[, 3])
+
+SVMROC4<-ggroc(ROCcurve4, legacy.axes = T) +
+  theme_minimal()+
+  geom_abline(slope=1, intercept = 1, linetype = "dashed", alpha = 0.7, colour = "grey") +
+  coord_equal() +
+  geom_ribbon(data = Conf4, aes(x = 1-x, ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
+  xlab(expression("1-Specificity")) +
+  ylab(expression("Sensitivity")) +
+  ggtitle(paste("SVM ROC Curve: AKAP12\nAUC =", format(round(AUCvalue, 2), nsmall = 2))) +
+  theme_bw(base_size = 16)
+
+SVMROC4
